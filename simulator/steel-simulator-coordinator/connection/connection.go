@@ -17,23 +17,34 @@ func GetListener() net.Listener {
 
 func AcceptLoop(listener net.Listener) {
 	for {
-		c, err := listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		go handleConnection(c)
+		go handleConnection(conn)
 	}
 }
 
-func handleConnection(c net.Conn) {
-	defer c.Close()
-	log.Printf("New agent connected from %s\n", c.RemoteAddr().String())
-	coord := communication.New(c)
-	initMsg, err := coord.Read()
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	log.Printf("New agent connected from %s\n", conn.RemoteAddr().String())
+	coord := communication.New(conn)
+	clientName, err := getClientName(coord)
 	if err != nil {
 		log.Println(err)
 		return
+	}
+	log.Println(clientName)
+	for {
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func getClientName(coord *communication.Coordinator) (string, error) {
+	initMsg, err := coord.Read()
+	if err != nil {
+		return "", err
 	}
 	log.Println(initMsg.Payload)
 	err = coord.Write(&communication.CoordinatorMessage{
@@ -41,10 +52,6 @@ func handleConnection(c net.Conn) {
 		Payload: struct{}{},
 	})
 	if err != nil {
-		log.Println(err)
-		return
-	}
-	for {
-		time.Sleep(1 * time.Second)
+		return "", err
 	}
 }
