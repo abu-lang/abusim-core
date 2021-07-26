@@ -1,9 +1,10 @@
 package connection
 
 import (
-	"fmt"
 	"log"
 	"net"
+	"steel-simulator-config/communication"
+	"time"
 )
 
 func GetListener() net.Listener {
@@ -27,5 +28,23 @@ func AcceptLoop(listener net.Listener) {
 
 func handleConnection(c net.Conn) {
 	defer c.Close()
-	fmt.Printf("New agent connected from %s\n", c.RemoteAddr().String())
+	log.Printf("New agent connected from %s\n", c.RemoteAddr().String())
+	coord := communication.New(c)
+	initMsg, err := coord.Read()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Println(initMsg.Payload)
+	err = coord.Write(&communication.CoordinatorMessage{
+		Type:    communication.CoordinatorMessageTypeACK,
+		Payload: struct{}{},
+	})
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	for {
+		time.Sleep(1 * time.Second)
+	}
 }
