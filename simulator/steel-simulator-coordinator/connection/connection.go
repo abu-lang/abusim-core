@@ -1,10 +1,10 @@
 package connection
 
 import (
+	"io"
 	"log"
 	"net"
 	"steel-simulator-config/communication"
-	"time"
 )
 
 func GetListener() net.Listener {
@@ -15,33 +15,41 @@ func GetListener() net.Listener {
 	return listener
 }
 
-func AcceptLoop(listener net.Listener) {
+func AcceptLoop(listener net.Listener, agents map[string]*communication.Coordinator) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		go handleConnection(conn)
+		go handleConnection(conn, agents)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, agents map[string]*communication.Coordinator) {
 	defer conn.Close()
 	log.Printf("New agent connected from %s\n", conn.RemoteAddr().String())
 	coord := communication.New(conn)
-	clientName, err := getClientName(coord)
+	agentName, err := getAgentName(coord)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	log.Println(clientName)
+	agents[agentName] = coord
 	for {
-		time.Sleep(1 * time.Second)
+		msg, err := coord.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Println(err)
+			break
+		}
+		log.Println(agentName, msg)
 	}
 }
 
-func getClientName(coord *communication.Coordinator) (string, error) {
+func getAgentName(coord *communication.Coordinator) (string, error) {
 	initMsg, err := coord.Read()
 	if err != nil {
 		return "", err
