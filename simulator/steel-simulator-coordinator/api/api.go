@@ -70,21 +70,40 @@ func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 				Other:   resources.Other,
 			})
 		case http.MethodPost:
-			err := sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
-				Type:    communication.CoordinatorMessageTypeACK,
-				Payload: "POST",
+			req := struct {
+				Actions string `json:"actions"`
+			}{}
+			err := json.NewDecoder(r.Body).Decode(&req)
+			if err != nil {
+				log.Println(err)
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			err = sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
+				Type:    communication.CoordinatorMessageTypeInputREQ,
+				Payload: req.Actions,
 			})
 			if err != nil {
 				log.Println(err)
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
+			msg, err := receiveMessageByName(agentName, agents)
+			if err != nil || msg.Type != communication.CoordinatorMessageTypeInputRES {
+				log.Println(err)
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			errInput := msg.Payload.(string)
+			if errInput != "" {
+				log.Println(errInput)
+				writeError(w, http.StatusBadRequest, errInput)
+				return
+			}
 			writeResponse(w, http.StatusOK, struct {
-				Method string `json:"method"`
-				Agent  string `json:"agent"`
+				Result string `json:"result"`
 			}{
-				Method: "POST",
-				Agent:  agentName,
+				Result: "ok",
 			})
 		}
 	}
