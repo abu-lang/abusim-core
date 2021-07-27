@@ -3,7 +3,7 @@ package connection
 import (
 	"log"
 	"net"
-	"steel-simulator-config/communication"
+	"steel-simulator-common/communication"
 )
 
 type ConnCoord struct {

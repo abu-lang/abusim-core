@@ -4,7 +4,7 @@ FROM golang:1.16-alpine as build
 RUN mkdir /coordinator
 WORKDIR /coordinator
 
-COPY ./simulator/steel-simulator-config ./simulator/steel-simulator-config
+COPY ./simulator/steel-simulator-common ./simulator/steel-simulator-common
 COPY ./src ./src
 
 WORKDIR /coordinator/simulator/steel-simulator-coordinator

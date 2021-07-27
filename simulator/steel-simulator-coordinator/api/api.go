@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"steel-lang/datastructure"
-	"steel-simulator-config/communication"
+	"steel-simulator-common/communication"
 	"steel-simulator-coordinator/connection"
 	"time"
 
