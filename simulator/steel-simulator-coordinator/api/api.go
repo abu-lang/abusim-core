@@ -2,15 +2,19 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"steel-lang/datastructure"
 	"steel-simulator-config/communication"
+	"steel-simulator-coordinator/connection"
+	"time"
 
 	"github.com/gorilla/mux"
 )
 
-func Serve(agents map[string]*communication.Coordinator) {
+func Serve(agents map[string]*connection.ConnCoord) {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", HandleIndex)
 	router.HandleFunc("/memory/{agentName}", GetHandleMemory(agents)).Methods(http.MethodGet, http.MethodPost)
@@ -22,27 +26,48 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Welcome!")
 }
 
-func GetHandleMemory(agents map[string]*communication.Coordinator) http.HandlerFunc {
+func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		agentName := vars["agentName"]
 		switch r.Method {
 		case http.MethodGet:
 			err := sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
-				Type:    communication.CoordinatorMessageTypeACK,
-				Payload: "GET",
+				Type:    communication.CoordinatorMessageTypeMemoryREQ,
+				Payload: struct{}{},
 			})
 			if err != nil {
 				log.Println(err)
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
+			msg, err := receiveMessageByName(agentName, agents)
+			if err != nil {
+				log.Println(err)
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			if msg.Type != communication.CoordinatorMessageTypeMemoryRES {
+				err := errors.New("unexpected response")
+				log.Println(err)
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			resources := msg.Payload.(datastructure.Resources)
 			writeResponse(w, http.StatusOK, struct {
-				Method string `json:"method"`
-				Agent  string `json:"agent"`
+				Bool    map[string]bool        `json:"bool"`
+				Integer map[string]int64       `json:"integer"`
+				Float   map[string]float64     `json:"float"`
+				Text    map[string]string      `json:"text"`
+				Time    map[string]time.Time   `json:"time"`
+				Other   map[string]interface{} `json:"other"`
 			}{
-				Method: "GET",
-				Agent:  agentName,
+				Bool:    resources.Bool,
+				Integer: resources.Integer,
+				Float:   resources.Float,
+				Text:    resources.Text,
+				Time:    resources.Time,
+				Other:   resources.Other,
 			})
 		case http.MethodPost:
 			err := sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
@@ -65,21 +90,33 @@ func GetHandleMemory(agents map[string]*communication.Coordinator) http.HandlerF
 	}
 }
 
-func sendMessageByName(agentName string, agents map[string]*communication.Coordinator, message *communication.CoordinatorMessage) error {
+func sendMessageByName(agentName string, agents map[string]*connection.ConnCoord, message *communication.CoordinatorMessage) error {
 	agent, ok := agents[agentName]
 	if !ok {
 		return fmt.Errorf("unknown agent \"%s\"", agentName)
 	}
-	err := agent.Write(message)
+	err := agent.Coord.Write(message)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+func receiveMessageByName(agentName string, agents map[string]*connection.ConnCoord) (*communication.CoordinatorMessage, error) {
+	agent, ok := agents[agentName]
+	if !ok {
+		return nil, fmt.Errorf("unknown agent \"%s\"", agentName)
+	}
+	msg, err := agent.Coord.Read()
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
 func writeError(w http.ResponseWriter, h int, e string) {
-	w.WriteHeader(h)
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(h)
 	b, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{
@@ -89,8 +126,8 @@ func writeError(w http.ResponseWriter, h int, e string) {
 }
 
 func writeResponse(w http.ResponseWriter, h int, p interface{}) {
-	w.WriteHeader(h)
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(h)
 	b, _ := json.Marshal(p)
 	w.Write(b)
 }
