@@ -46,7 +46,6 @@ func getClientName(coord *communication.Coordinator) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log.Println(initMsg.Payload)
 	err = coord.Write(&communication.CoordinatorMessage{
 		Type:    communication.CoordinatorMessageTypeACK,
 		Payload: struct{}{},
@@ -54,4 +53,5 @@ func getClientName(coord *communication.Coordinator) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return initMsg.Payload.(string), nil
 }
