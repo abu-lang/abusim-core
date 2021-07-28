@@ -31,7 +31,14 @@ func Serve(agents map[string]*connection.ConnCoord) {
 }
 
 func HandleIndex(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Welcome!")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusTeapot)
+	b, _ := json.Marshal(struct {
+		Welcome string `json:"welcome"`
+	}{
+		Welcome: "Welcome to steel-coordinator API!",
+	})
+	w.Write(b)
 }
 
 func GetHandleConfig(agents map[string]*connection.ConnCoord) http.HandlerFunc {
