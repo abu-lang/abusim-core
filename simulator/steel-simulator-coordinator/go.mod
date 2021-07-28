@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/gorilla/mux v1.8.0
-	github.com/rs/cors v1.8.0 // indirect
+	github.com/rs/cors v1.8.0
 	steel-lang v0.0.0
 	steel-simulator-common v0.0.0
 )

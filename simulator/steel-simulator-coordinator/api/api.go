@@ -113,20 +113,26 @@ func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 				return
 			}
 			resources := msg.Payload.(datastructure.Resources)
-			writeResponse(w, http.StatusOK, struct {
-				Bool    map[string]bool        `json:"bool"`
-				Integer map[string]int64       `json:"integer"`
-				Float   map[string]float64     `json:"float"`
-				Text    map[string]string      `json:"text"`
-				Time    map[string]time.Time   `json:"time"`
-				Other   map[string]interface{} `json:"other"`
-			}{
+			type mem struct {
+				Bool    map[string]bool      `json:"bool"`
+				Integer map[string]int64     `json:"integer"`
+				Float   map[string]float64   `json:"float"`
+				Text    map[string]string    `json:"text"`
+				Time    map[string]time.Time `json:"time"`
+			}
+			m := mem{
 				Bool:    resources.Bool,
 				Integer: resources.Integer,
 				Float:   resources.Float,
 				Text:    resources.Text,
 				Time:    resources.Time,
-				Other:   resources.Other,
+			}
+			writeResponse(w, http.StatusOK, struct {
+				Name   string `json:"name"`
+				Memory mem    `json:"memory"`
+			}{
+				Name:   agentName,
+				Memory: m,
 			})
 		case http.MethodPost:
 			req := struct {
