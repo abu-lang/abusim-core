@@ -7,6 +7,7 @@ import (
 	"encoding/gob"
 	"io"
 	"net"
+	"steel-simulator-common/config"
 
 	"steel-lang/datastructure"
 )
@@ -24,6 +25,8 @@ const (
 	CoordinatorMessageTypeMemoryRES = iota
 	CoordinatorMessageTypeInputREQ  = iota
 	CoordinatorMessageTypeInputRES  = iota
+	CoordinatorMessageTypeConfigREQ = iota
+	CoordinatorMessageTypeConfigRES = iota
 )
 
 type CoordinatorMessage struct {
@@ -37,6 +40,7 @@ func New(conn net.Conn) *Coordinator {
 
 	gob.Register(struct{}{})
 	gob.Register(datastructure.Resources{})
+	gob.Register(config.Agent{})
 
 	return &Coordinator{
 		readwrite: bufio.NewReadWriter(r, w),

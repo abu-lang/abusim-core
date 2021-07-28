@@ -8,22 +8,81 @@ import (
 	"net/http"
 	"steel-lang/datastructure"
 	"steel-simulator-common/communication"
+	"steel-simulator-common/config"
 	"steel-simulator-coordinator/connection"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 )
 
 func Serve(agents map[string]*connection.ConnCoord) {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", HandleIndex)
+	router.HandleFunc("/config/{agentName}", GetHandleConfig(agents)).Methods(http.MethodGet)
 	router.HandleFunc("/memory/{agentName}", GetHandleMemory(agents)).Methods(http.MethodGet, http.MethodPost)
 
-	log.Fatal(http.ListenAndServe(":4000", router))
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:8080"},
+	})
+
+	log.Fatal(http.ListenAndServe(":4000", c.Handler(router)))
 }
 
 func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Welcome!")
+}
+
+func GetHandleConfig(agents map[string]*connection.ConnCoord) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		agentName := vars["agentName"]
+		err := sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
+			Type:    communication.CoordinatorMessageTypeConfigREQ,
+			Payload: struct{}{},
+		})
+		if err != nil {
+			log.Println(err)
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		msg, err := receiveMessageByName(agentName, agents)
+		if err != nil {
+			log.Println(err)
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if msg.Type != communication.CoordinatorMessageTypeConfigRES {
+			err := errors.New("unexpected response")
+			log.Println(err)
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		agent := msg.Payload.(config.Agent)
+		memory := []string{}
+		for vartype, value := range agent.Memory {
+			for name, initvalues := range value {
+				memory = append(memory, strings.Join([]string{vartype, name, strings.Join(initvalues, ",")}, ":"))
+			}
+		}
+		writeResponse(w, http.StatusOK, struct {
+			Name             string   `json:"name"`
+			MemoryController string   `json:"memorycontroller"`
+			Memory           []string `json:"memory"`
+			Rules            []string `json:"rules"`
+			Endpoints        []string `json:"endpoints"`
+			Tick             string   `json:"tick"`
+		}{
+			Name:             agent.Name,
+			MemoryController: agent.MemoryController,
+			Memory:           memory,
+			Rules:            agent.Rules,
+			Endpoints:        agent.Endpoints,
+			Tick:             agent.Tick.String(),
+		})
+
+	}
 }
 
 func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
