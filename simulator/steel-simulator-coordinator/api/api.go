@@ -69,8 +69,8 @@ func GetHandleConfig(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 		agent := msg.Payload.(config.Agent)
 		memory := []string{}
 		for vartype, value := range agent.Memory {
-			for name, initvalues := range value {
-				memory = append(memory, strings.Join([]string{vartype, name, strings.Join(initvalues, ",")}, ":"))
+			for name, initvalue := range value {
+				memory = append(memory, strings.Join([]string{vartype, name, initvalue}, ":"))
 			}
 		}
 		writeResponse(w, http.StatusOK, struct {

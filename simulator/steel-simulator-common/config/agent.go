@@ -18,7 +18,7 @@ type Config struct {
 type Agent struct {
 	Name             string
 	MemoryController string
-	Memory           map[string]map[string][]string
+	Memory           map[string]map[string]string
 	Rules            []string
 	Endpoints        []string
 	Tick             time.Duration
@@ -28,7 +28,7 @@ func NewAgent(name string) *Agent {
 	return &Agent{
 		Name:             name,
 		MemoryController: "basic",
-		Memory:           make(map[string]map[string][]string),
+		Memory:           make(map[string]map[string]string),
 		Rules:            nil,
 		Endpoints:        nil,
 		Tick:             time.Second,
@@ -44,13 +44,13 @@ func (a *Agent) SetMemoryController(memorycontroller string) {
 func (a *Agent) AddMemoryItem(item string) error {
 	parts := strings.Split(item, ":")
 	var memoryItem struct {
-		Type   string
-		Name   string
-		Values []string
+		Type  string
+		Name  string
+		Value string
 	}
 	switch len(parts) {
 	case 3:
-		memoryItem.Values = strings.Split(parts[2], ",")
+		memoryItem.Value = parts[2]
 		fallthrough
 	case 2:
 		memoryItem.Type = parts[0]
@@ -59,9 +59,9 @@ func (a *Agent) AddMemoryItem(item string) error {
 		return fmt.Errorf("bad value in memory item \"%s\": unknown number of parts", item)
 	}
 	if _, ok := a.Memory[memoryItem.Type]; !ok {
-		a.Memory[memoryItem.Type] = make(map[string][]string)
+		a.Memory[memoryItem.Type] = make(map[string]string)
 	}
-	a.Memory[memoryItem.Type][memoryItem.Name] = memoryItem.Values
+	a.Memory[memoryItem.Type][memoryItem.Name] = memoryItem.Value
 	return nil
 }
 
