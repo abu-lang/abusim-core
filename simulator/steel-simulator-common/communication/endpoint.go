@@ -105,6 +105,7 @@ func (e *Endpoint) Write(msg *EndpointMessage) error {
 	return nil
 }
 
+// Close closes the connection
 func (e *Endpoint) Close() {
 	e.conn.Close()
 }
