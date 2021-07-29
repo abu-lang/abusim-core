@@ -9,7 +9,6 @@ import (
 	"steel-lang/datastructure"
 	"steel-simulator-common/communication"
 	"steel-simulator-common/config"
-	"steel-simulator-coordinator/connection"
 	"strings"
 	"time"
 
@@ -17,14 +16,16 @@ import (
 	"github.com/rs/cors"
 )
 
-func Serve(agents map[string]*connection.ConnCoord) {
+func Serve(ends map[string]*communication.Endpoint) {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", HandleIndex)
-	router.HandleFunc("/config/{agentName}", GetHandleConfig(agents)).Methods(http.MethodGet)
-	router.HandleFunc("/memory/{agentName}", GetHandleMemory(agents)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/config/{agentName}", GetHandleConfig(ends)).Methods(http.MethodGet)
+	router.HandleFunc("/memory/{agentName}", GetHandleMemory(ends)).Methods(http.MethodGet, http.MethodPost)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:8080"},
+		AllowedMethods: []string{"POST", "GET"},
+		AllowedHeaders: []string{"Accept", "content-type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
 	})
 
 	log.Fatal(http.ListenAndServe(":4000", c.Handler(router)))
@@ -41,12 +42,12 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-func GetHandleConfig(agents map[string]*connection.ConnCoord) http.HandlerFunc {
+func GetHandleConfig(ends map[string]*communication.Endpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		agentName := vars["agentName"]
-		err := sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
-			Type:    communication.CoordinatorMessageTypeConfigREQ,
+		err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
+			Type:    communication.EndpointMessageTypeConfigREQ,
 			Payload: struct{}{},
 		})
 		if err != nil {
@@ -54,13 +55,13 @@ func GetHandleConfig(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		msg, err := receiveMessageByName(agentName, agents)
+		msg, err := receiveMessageByName(agentName, ends)
 		if err != nil {
 			log.Println(err)
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		if msg.Type != communication.CoordinatorMessageTypeConfigRES {
+		if msg.Type != communication.EndpointMessageTypeConfigRES {
 			err := errors.New("unexpected response")
 			log.Println(err)
 			writeError(w, http.StatusNotFound, err.Error())
@@ -92,14 +93,14 @@ func GetHandleConfig(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 	}
 }
 
-func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
+func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		agentName := vars["agentName"]
 		switch r.Method {
 		case http.MethodGet:
-			err := sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
-				Type:    communication.CoordinatorMessageTypeMemoryREQ,
+			err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
+				Type:    communication.EndpointMessageTypeMemoryREQ,
 				Payload: struct{}{},
 			})
 			if err != nil {
@@ -107,13 +108,13 @@ func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			msg, err := receiveMessageByName(agentName, agents)
+			msg, err := receiveMessageByName(agentName, ends)
 			if err != nil {
 				log.Println(err)
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			if msg.Type != communication.CoordinatorMessageTypeMemoryRES {
+			if msg.Type != communication.EndpointMessageTypeMemoryRES {
 				err := errors.New("unexpected response")
 				log.Println(err)
 				writeError(w, http.StatusNotFound, err.Error())
@@ -151,8 +152,8 @@ func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			err = sendMessageByName(agentName, agents, &communication.CoordinatorMessage{
-				Type:    communication.CoordinatorMessageTypeInputREQ,
+			err = sendMessageByName(agentName, ends, &communication.EndpointMessage{
+				Type:    communication.EndpointMessageTypeInputREQ,
 				Payload: req.Actions,
 			})
 			if err != nil {
@@ -160,8 +161,8 @@ func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			msg, err := receiveMessageByName(agentName, agents)
-			if err != nil || msg.Type != communication.CoordinatorMessageTypeInputRES {
+			msg, err := receiveMessageByName(agentName, ends)
+			if err != nil || msg.Type != communication.EndpointMessageTypeInputRES {
 				log.Println(err)
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -181,24 +182,24 @@ func GetHandleMemory(agents map[string]*connection.ConnCoord) http.HandlerFunc {
 	}
 }
 
-func sendMessageByName(agentName string, agents map[string]*connection.ConnCoord, message *communication.CoordinatorMessage) error {
-	agent, ok := agents[agentName]
+func sendMessageByName(agentName string, ends map[string]*communication.Endpoint, message *communication.EndpointMessage) error {
+	end, ok := ends[agentName]
 	if !ok {
 		return fmt.Errorf("unknown agent \"%s\"", agentName)
 	}
-	err := agent.Coord.Write(message)
+	err := end.Write(message)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func receiveMessageByName(agentName string, agents map[string]*connection.ConnCoord) (*communication.CoordinatorMessage, error) {
-	agent, ok := agents[agentName]
+func receiveMessageByName(agentName string, ends map[string]*communication.Endpoint) (*communication.EndpointMessage, error) {
+	end, ok := ends[agentName]
 	if !ok {
 		return nil, fmt.Errorf("unknown agent \"%s\"", agentName)
 	}
-	msg, err := agent.Coord.Read()
+	msg, err := end.Read()
 	if err != nil {
 		return nil, err
 	}

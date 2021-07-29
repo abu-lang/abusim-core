@@ -4,29 +4,30 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"steel-simulator-common/communication"
 	"steel-simulator-coordinator/api"
-	"steel-simulator-coordinator/connection"
+	"steel-simulator-coordinator/endpoint"
 	"syscall"
 )
 
 func main() {
-	agents := make(map[string]*connection.ConnCoord)
-	setupCloseHandler(agents)
+	ends := make(map[string]*communication.Endpoint)
+	setupCloseHandler(ends)
 	log.Println("Starting listener")
-	listener := connection.GetListener()
+	listener := endpoint.GetListener()
 	defer listener.Close()
-	go connection.AcceptLoop(listener, agents)
+	go endpoint.HandleConnections(listener, ends)
 	log.Println("Starting API")
-	api.Serve(agents)
+	api.Serve(ends)
 }
 
-func setupCloseHandler(agents map[string]*connection.ConnCoord) {
+func setupCloseHandler(ends map[string]*communication.Endpoint) {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		for _, agent := range agents {
-			agent.Conn.Close()
+		for _, end := range ends {
+			end.Close()
 		}
 		os.Exit(0)
 	}()
