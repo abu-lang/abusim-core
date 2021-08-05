@@ -12,7 +12,7 @@ import (
 	"steel-lang/datastructure"
 )
 
-// Endpoint represent an agent-coordinatior connection side
+// Endpoint represents an agent-coordinatior connection side
 type Endpoint struct {
 	conn      net.Conn
 	readwrite *bufio.ReadWriter
@@ -31,10 +31,22 @@ const (
 	EndpointMessageTypeConfigRES = iota
 )
 
-// EndpointMessage represent an agent-coordinatior message
+// EndpointMessage represents an agent-coordinatior message
 type EndpointMessage struct {
 	Type    EndpointMessageType
 	Payload interface{}
+}
+
+// AgentState represents an agent state
+type AgentState struct {
+	Memory datastructure.Resources
+	Pool   [][]PoolElem
+}
+
+// PoolElem represents an pool element
+type PoolElem struct {
+	Resource string
+	Value    string
 }
 
 // New creates a new endpoint from a connection
@@ -44,7 +56,7 @@ func New(conn net.Conn) *Endpoint {
 	w := bufio.NewWriter(conn)
 	// ... I register the structures passed as payload in the messages...
 	gob.Register(struct{}{})
-	gob.Register(datastructure.Resources{})
+	gob.Register(AgentState{})
 	gob.Register(config.Agent{})
 	// ... and I return the endpoint
 	return &Endpoint{

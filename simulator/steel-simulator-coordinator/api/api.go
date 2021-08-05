@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"steel-lang/datastructure"
 	"steel-simulator-common/communication"
 	"steel-simulator-common/config"
 	"strings"
@@ -141,8 +140,9 @@ func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			// I get the agent resources from the answer...
-			resources := msg.Payload.(datastructure.Resources)
+			// I get the state from the answer...
+			state := msg.Payload.(communication.AgentState)
+			// ... I prepare the memory...
 			type mem struct {
 				Bool    map[string]bool      `json:"bool"`
 				Integer map[string]int64     `json:"integer"`
@@ -151,19 +151,34 @@ func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 				Time    map[string]time.Time `json:"time"`
 			}
 			m := mem{
-				Bool:    resources.Bool,
-				Integer: resources.Integer,
-				Float:   resources.Float,
-				Text:    resources.Text,
-				Time:    resources.Time,
+				Bool:    state.Memory.Bool,
+				Integer: state.Memory.Integer,
+				Float:   state.Memory.Float,
+				Text:    state.Memory.Text,
+				Time:    state.Memory.Time,
 			}
-			// ... and I respond with the agent memory
+			// ... I prepare the pool...
+			type poolElem struct {
+				Resource string `json:"resource"`
+				Value    string `json:"value"`
+			}
+			p := [][]poolElem{}
+			for _, ruleActions := range state.Pool {
+				poolActions := []poolElem{}
+				for _, action := range ruleActions {
+					poolActions = append(poolActions, poolElem(action))
+				}
+				p = append(p, poolActions)
+			}
+			// ... and I respond with the agent state
 			writeResponse(w, http.StatusOK, struct {
-				Name   string `json:"name"`
-				Memory mem    `json:"memory"`
+				Name   string       `json:"name"`
+				Memory mem          `json:"memory"`
+				Pool   [][]poolElem `json:"pool"`
 			}{
 				Name:   agentName,
 				Memory: m,
+				Pool:   p,
 			})
 		// If I need to do an input...
 		case http.MethodPost:
