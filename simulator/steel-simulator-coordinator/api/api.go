@@ -22,6 +22,8 @@ func Serve(ends map[string]*communication.Endpoint) {
 	router.HandleFunc("/", HandleIndex)
 	router.HandleFunc("/config/{agentName}", GetHandleConfig(ends)).Methods(http.MethodGet)
 	router.HandleFunc("/memory/{agentName}", GetHandleMemory(ends)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/debug/{agentName}", GetHandleDebug(ends)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/debug/{agentName}/step", GetHandleDebugStep(ends)).Methods(http.MethodPost)
 	// ... I set up the CORS middleware...
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:8080"},
@@ -71,7 +73,7 @@ func GetHandleConfig(ends map[string]*communication.Endpoint) http.HandlerFunc {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		if msg.Type != communication.EndpointMessageTypeConfigRES {
+		if msg.Type != communication.EndpointMessageTypeACK {
 			err := errors.New("unexpected response")
 			log.Println(err)
 			writeError(w, http.StatusNotFound, err.Error())
@@ -102,7 +104,6 @@ func GetHandleConfig(ends map[string]*communication.Endpoint) http.HandlerFunc {
 			Endpoints:        agent.Endpoints,
 			Tick:             agent.Tick.String(),
 		})
-
 	}
 }
 
@@ -134,7 +135,7 @@ func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 				writeError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			if msg.Type != communication.EndpointMessageTypeMemoryRES {
+			if msg.Type != communication.EndpointMessageTypeACK {
 				err := errors.New("unexpected response")
 				log.Println(err)
 				writeError(w, http.StatusNotFound, err.Error())
@@ -204,7 +205,7 @@ func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 			}
 			// ... and I receive the answer
 			msg, err := receiveMessageByName(agentName, ends)
-			if err != nil || msg.Type != communication.EndpointMessageTypeInputRES {
+			if err != nil || msg.Type != communication.EndpointMessageTypeACK {
 				log.Println(err)
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -223,6 +224,141 @@ func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 				Result: "ok",
 			})
 		}
+	}
+}
+
+// GetHandleDebug returns an handler for the debug method
+func GetHandleDebug(ends map[string]*communication.Endpoint) http.HandlerFunc {
+	// I return the handler, decorated with the list of endpoints
+	return func(w http.ResponseWriter, r *http.Request) {
+		// I get the agent name from the query...
+		vars := mux.Vars(r)
+		agentName := vars["agentName"]
+		// ... and I check what do I have to do
+		switch r.Method {
+		// If I need to retrieve the debug state...
+		case http.MethodGet:
+			// ... I send a debug request...
+			err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
+				Type:    communication.EndpointMessageTypeDebugREQ,
+				Payload: struct{}{},
+			})
+			if err != nil {
+				log.Println(err)
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			// ... and I receive the answer
+			msg, err := receiveMessageByName(agentName, ends)
+			if err != nil {
+				log.Println(err)
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			if msg.Type != communication.EndpointMessageTypeACK {
+				err := errors.New("unexpected response")
+				log.Println(err)
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			// I get the state from the answer...
+			dbgStatus := msg.Payload.(communication.AgentDebugStatus)
+			// ... I prepare the status...
+			type status struct {
+				Paused    bool   `json:"paused"`
+				Verbosity string `json:"verbosity"`
+			}
+			s := status{
+				Paused:    dbgStatus.Paused,
+				Verbosity: dbgStatus.Verbosity,
+			}
+			// ... and I respond with the agent debug status
+			writeResponse(w, http.StatusOK, struct {
+				Name   string `json:"name"`
+				Status status `json:"status"`
+			}{
+				Name:   agentName,
+				Status: s,
+			})
+		// If I need to change the debug status...
+		case http.MethodPost:
+			// ... I parse the request body to extract the status payload...
+			req := struct {
+				Paused    bool   `json:"paused"`
+				Verbosity string `json:"verbosity"`
+			}{}
+			err := json.NewDecoder(r.Body).Decode(&req)
+			if err != nil {
+				log.Println(err)
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			// ... I send an debug status change request...
+			err = sendMessageByName(agentName, ends, &communication.EndpointMessage{
+				Type: communication.EndpointMessageTypeDebugChangeREQ,
+				Payload: communication.AgentDebugStatus{
+					Paused:    req.Paused,
+					Verbosity: req.Verbosity,
+				},
+			})
+			if err != nil {
+				log.Println(err)
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			// ... and I receive the answer
+			msg, err := receiveMessageByName(agentName, ends)
+			if err != nil || msg.Type != communication.EndpointMessageTypeACK {
+				log.Println(err)
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			// Finally, I respond affirmatively
+			writeResponse(w, http.StatusOK, struct {
+				Result string `json:"result"`
+			}{
+				Result: "ok",
+			})
+		}
+	}
+}
+
+// GetHandleDebugStep returns an handler for the debug step method
+func GetHandleDebugStep(ends map[string]*communication.Endpoint) http.HandlerFunc {
+	// I return the handler, decorated with the list of endpoints
+	return func(w http.ResponseWriter, r *http.Request) {
+		// I get the agent name from the query...
+		vars := mux.Vars(r)
+		agentName := vars["agentName"]
+		// ... I send a configuration request...
+		err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
+			Type:    communication.EndpointMessageTypeDebugStepREQ,
+			Payload: struct{}{},
+		})
+		if err != nil {
+			log.Println(err)
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		// ... and I receive the answer
+		msg, err := receiveMessageByName(agentName, ends)
+		if err != nil {
+			log.Println(err)
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if msg.Type != communication.EndpointMessageTypeACK {
+			err := errors.New("unexpected response")
+			log.Println(err)
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		// Finally, I respond affirmatively
+		writeResponse(w, http.StatusOK, struct {
+			Result string `json:"result"`
+		}{
+			Result: "ok",
+		})
 	}
 }
 
