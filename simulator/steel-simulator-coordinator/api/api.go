@@ -26,7 +26,7 @@ func Serve(ends map[string]*communication.Endpoint) {
 	router.HandleFunc("/debug/{agentName}/step", GetHandleDebugStep(ends)).Methods(http.MethodPost)
 	// ... I set up the CORS middleware...
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:8080"},
+		AllowedOrigins: []string{"http://localhost", "http://localhost:*"},
 		AllowedMethods: []string{"POST", "GET"},
 		AllowedHeaders: []string{"Accept", "content-type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
 	})
