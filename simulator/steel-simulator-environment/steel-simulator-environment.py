@@ -14,9 +14,9 @@ def envTempChangeConv(room):
             temp_sensor_agent = f'temp_{room}'
             room_temp = env.get_variables(temp_sensor_agent)['temperature']
             if action == 'increase':
-                env.post_input(temp_sensor_agent, f'temperature = {room_temp + 1};')
+                env.post_input(temp_sensor_agent, f'temperature = {room_temp + 1}')
             elif action == 'decrease':
-                env.post_input(temp_sensor_agent, f'temperature = {room_temp - 1};')
+                env.post_input(temp_sensor_agent, f'temperature = {room_temp - 1}')
     return changeTemp
 
 env.on('conv_S1', 'action', 10, envTempChangeConv('S1'))
