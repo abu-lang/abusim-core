@@ -9,7 +9,7 @@ import (
 	"net"
 	"steel-simulator-common/config"
 
-	"steel-lang/datastructure"
+	"steel-lang/memory"
 )
 
 // Endpoint represents an agent-coordinatior connection side
@@ -39,7 +39,7 @@ type EndpointMessage struct {
 
 // AgentState represents an agent state
 type AgentState struct {
-	Memory datastructure.Resources
+	Memory memory.Resources
 	Pool   [][]PoolElem
 }
 
