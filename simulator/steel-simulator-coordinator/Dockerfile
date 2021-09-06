@@ -5,7 +5,7 @@ RUN mkdir /coordinator
 WORKDIR /coordinator
 
 COPY ./simulator/steel-simulator-common ./simulator/steel-simulator-common
-COPY ./src ./src
+COPY ./steel ./steel
 
 WORKDIR /coordinator/simulator/steel-simulator-coordinator
 
