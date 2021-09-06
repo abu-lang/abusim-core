@@ -2,10 +2,6 @@ module steel-simulator-common
 
 go 1.16
 
-replace (
-	steel-lang => ../../src
-)
+require steel v0.0.0
 
-require (
-	steel-lang v0.0.0
-)
+replace steel => ../../steel

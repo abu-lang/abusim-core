@@ -9,7 +9,7 @@ import (
 	"net"
 	"steel-simulator-common/config"
 
-	"steel-lang/memory"
+	"steel/memory"
 )
 
 // Endpoint represents an agent-coordinatior connection side
