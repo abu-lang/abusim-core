@@ -14,8 +14,9 @@ import (
 
 // Endpoint represents an agent-coordinatior connection side
 type Endpoint struct {
-	conn      net.Conn
-	readwrite *bufio.ReadWriter
+	conn   net.Conn
+	reader *bufio.Reader
+	writer *bufio.Writer
 }
 
 type EndpointMessageType int
@@ -67,8 +68,9 @@ func New(conn net.Conn) *Endpoint {
 	gob.Register(config.Agent{})
 	// ... and I return the endpoint
 	return &Endpoint{
-		conn:      conn,
-		readwrite: bufio.NewReadWriter(r, w),
+		conn:   conn,
+		reader: r,
+		writer: w,
 	}
 }
 
@@ -76,7 +78,7 @@ func New(conn net.Conn) *Endpoint {
 func (e *Endpoint) Read() (*EndpointMessage, error) {
 	// I read the 4 bytes that contains the length of the message...
 	h := make([]byte, 4)
-	_, err := io.ReadFull(e.readwrite, h)
+	_, err := io.ReadFull(e.reader, h)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +86,7 @@ func (e *Endpoint) Read() (*EndpointMessage, error) {
 	l := binary.BigEndian.Uint32(h)
 	// ... I read the entire message...
 	b := make([]byte, l)
-	_, err = io.ReadFull(e.readwrite, b)
+	_, err = io.ReadFull(e.reader, b)
 	if err != nil {
 		return nil, err
 	}
@@ -110,17 +112,17 @@ func (e *Endpoint) Write(msg *EndpointMessage) error {
 	// ... I send the length...
 	h := make([]byte, 4)
 	binary.BigEndian.PutUint32(h, uint32(buf.Len()))
-	_, err = e.readwrite.Write(h)
+	_, err = e.writer.Write(h)
 	if err != nil {
 		return err
 	}
 	// ... and I send the message itself
-	_, err = e.readwrite.Write(buf.Bytes())
+	_, err = e.writer.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}
 	// Finally, I flush the writer to ensure the message is gone
-	e.readwrite.Flush()
+	e.writer.Flush()
 	return nil
 }
 
