@@ -2,14 +2,10 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"steel-simulator-common/communication"
-	"steel-simulator-common/config"
-	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -17,19 +13,24 @@ import (
 
 // Serve serves the API on the API port
 func Serve(ends map[string]*communication.Endpoint) {
-	// I create a router for the API and I set the handlers...
+	// I create the channels to serialize the actions...
+	actions := make(chan Action)
+	responses := make(chan ActionResponse)
+	// ... I create a router for the API and I set the handlers...
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", HandleIndex)
-	router.HandleFunc("/config/{agentName}", GetHandleConfig(ends)).Methods(http.MethodGet)
-	router.HandleFunc("/memory/{agentName}", GetHandleMemory(ends)).Methods(http.MethodGet, http.MethodPost)
-	router.HandleFunc("/debug/{agentName}", GetHandleDebug(ends)).Methods(http.MethodGet, http.MethodPost)
-	router.HandleFunc("/debug/{agentName}/step", GetHandleDebugStep(ends)).Methods(http.MethodPost)
+	router.HandleFunc("/config/{agentName}", GetHandleConfig(actions, responses)).Methods(http.MethodGet)
+	router.HandleFunc("/memory/{agentName}", GetHandleMemory(actions, responses)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/debug/{agentName}", GetHandleDebug(actions, responses)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/debug/{agentName}/step", GetHandleDebugStep(actions, responses)).Methods(http.MethodPost)
 	// ... I set up the CORS middleware...
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost", "http://localhost:*"},
 		AllowedMethods: []string{"POST", "GET"},
 		AllowedHeaders: []string{"Accept", "content-type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
 	})
+	// ... I run the action processing function...
+	go Process(actions, responses, ends)
 	// ... and I serve the CORS decorated API
 	log.Fatal(http.ListenAndServe(":4000", c.Handler(router)))
 }
@@ -50,65 +51,24 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetHandleConfig returns an handler for the configuration method
-func GetHandleConfig(ends map[string]*communication.Endpoint) http.HandlerFunc {
+func GetHandleConfig(actions chan Action, responses chan ActionResponse) http.HandlerFunc {
 	// I return the handler, decorated with the list of endpoints
 	return func(w http.ResponseWriter, r *http.Request) {
 		// I get the agent name from the query...
 		vars := mux.Vars(r)
 		agentName := vars["agentName"]
-		// ... I send a configuration request...
-		err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-			Type:    communication.EndpointMessageTypeConfigREQ,
-			Payload: struct{}{},
-		})
-		if err != nil {
-			log.Println(err)
-			writeError(w, http.StatusNotFound, err.Error())
-			return
+		// ... and I add a new action to process
+		actions <- Action{
+			Type:    ActionConfig,
+			Payload: agentName,
 		}
-		// ... and I receive the answer
-		msg, err := receiveMessageByName(agentName, ends)
-		if err != nil {
-			log.Println(err)
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		if msg.Type != communication.EndpointMessageTypeACK {
-			err := errors.New("unexpected response")
-			log.Println(err)
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		// I get the agent configuration from the answer...
-		agent := msg.Payload.(config.Agent)
-		// ... I prepare the memory item strings...
-		memory := []string{}
-		for vartype, value := range agent.Memory {
-			for name, initvalue := range value {
-				memory = append(memory, strings.Join([]string{vartype, name, initvalue}, ":"))
-			}
-		}
-		// ... and I respond with the configuration
-		writeResponse(w, http.StatusOK, struct {
-			Name             string   `json:"name"`
-			MemoryController string   `json:"memorycontroller"`
-			Memory           []string `json:"memory"`
-			Rules            []string `json:"rules"`
-			Endpoints        []string `json:"endpoints"`
-			Tick             string   `json:"tick"`
-		}{
-			Name:             agent.Name,
-			MemoryController: agent.MemoryController,
-			Memory:           memory,
-			Rules:            agent.Rules,
-			Endpoints:        agent.Endpoints,
-			Tick:             agent.Tick.String(),
-		})
+		// I get the response and I return it
+		writeActionResponse(w, <-responses)
 	}
 }
 
 // GetHandleMemory returns an handler for the memory method
-func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
+func GetHandleMemory(actions chan Action, responses chan ActionResponse) http.HandlerFunc {
 	// I return the handler, decorated with the list of endpoints
 	return func(w http.ResponseWriter, r *http.Request) {
 		// I get the agent name from the query...
@@ -118,117 +78,43 @@ func GetHandleMemory(ends map[string]*communication.Endpoint) http.HandlerFunc {
 		switch r.Method {
 		// If I need to retrieve the memory...
 		case http.MethodGet:
-			// ... I send a memory request...
-			err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-				Type:    communication.EndpointMessageTypeMemoryREQ,
-				Payload: struct{}{},
-			})
-			if err != nil {
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
+			// ... I add a new action to process
+			actions <- Action{
+				Type:    ActionMemory,
+				Payload: agentName,
 			}
-			// ... and I receive the answer
-			msg, err := receiveMessageByName(agentName, ends)
-			if err != nil {
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
-			}
-			if msg.Type != communication.EndpointMessageTypeACK {
-				err := errors.New("unexpected response")
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
-			}
-			// I get the state from the answer...
-			state := msg.Payload.(communication.AgentState)
-			// ... I prepare the memory...
-			type mem struct {
-				Bool    map[string]bool      `json:"bool"`
-				Integer map[string]int64     `json:"integer"`
-				Float   map[string]float64   `json:"float"`
-				Text    map[string]string    `json:"text"`
-				Time    map[string]time.Time `json:"time"`
-			}
-			m := mem{
-				Bool:    state.Memory.Bool,
-				Integer: state.Memory.Integer,
-				Float:   state.Memory.Float,
-				Text:    state.Memory.Text,
-				Time:    state.Memory.Time,
-			}
-			// ... I prepare the pool...
-			type poolElem struct {
-				Resource string `json:"resource"`
-				Value    string `json:"value"`
-			}
-			p := [][]poolElem{}
-			for _, ruleActions := range state.Pool {
-				poolActions := []poolElem{}
-				for _, action := range ruleActions {
-					poolActions = append(poolActions, poolElem(action))
-				}
-				p = append(p, poolActions)
-			}
-			// ... and I respond with the agent state
-			writeResponse(w, http.StatusOK, struct {
-				Name   string       `json:"name"`
-				Memory mem          `json:"memory"`
-				Pool   [][]poolElem `json:"pool"`
-			}{
-				Name:   agentName,
-				Memory: m,
-				Pool:   p,
-			})
 		// If I need to do an input...
 		case http.MethodPost:
 			// ... I parse the request body to extract the input payload...
-			req := struct {
+			type request struct {
 				Actions string `json:"actions"`
-			}{}
+			}
+			req := request{}
 			err := json.NewDecoder(r.Body).Decode(&req)
 			if err != nil {
 				log.Println(err)
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			// ... I send an input request...
-			err = sendMessageByName(agentName, ends, &communication.EndpointMessage{
-				Type:    communication.EndpointMessageTypeInputREQ,
-				Payload: req.Actions,
-			})
-			if err != nil {
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
+			// ... and I add a new action to process
+			actions <- Action{
+				Type: ActionInput,
+				Payload: struct {
+					agentName string
+					actions   string
+				}{
+					agentName,
+					req.Actions,
+				},
 			}
-			// ... and I receive the answer
-			msg, err := receiveMessageByName(agentName, ends)
-			if err != nil || msg.Type != communication.EndpointMessageTypeACK {
-				log.Println(err)
-				writeError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			// I get the eventual error from the answer...
-			errInput := msg.Payload.(string)
-			if errInput != "" {
-				log.Println(errInput)
-				writeError(w, http.StatusBadRequest, errInput)
-				return
-			}
-			// and, if there is none, I respond affirmatively
-			writeResponse(w, http.StatusOK, struct {
-				Result string `json:"result"`
-			}{
-				Result: "ok",
-			})
 		}
+		// I get the response and I return it
+		writeActionResponse(w, <-responses)
 	}
 }
 
 // GetHandleDebug returns an handler for the debug method
-func GetHandleDebug(ends map[string]*communication.Endpoint) http.HandlerFunc {
+func GetHandleDebug(actions chan Action, responses chan ActionResponse) http.HandlerFunc {
 	// I return the handler, decorated with the list of endpoints
 	return func(w http.ResponseWriter, r *http.Request) {
 		// I get the agent name from the query...
@@ -238,127 +124,57 @@ func GetHandleDebug(ends map[string]*communication.Endpoint) http.HandlerFunc {
 		switch r.Method {
 		// If I need to retrieve the debug state...
 		case http.MethodGet:
-			// ... I send a debug request...
-			err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-				Type:    communication.EndpointMessageTypeDebugREQ,
-				Payload: struct{}{},
-			})
-			if err != nil {
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
+			// ... I add a new action to process
+			actions <- Action{
+				Type:    ActionDebugInfo,
+				Payload: agentName,
 			}
-			// ... and I receive the answer
-			msg, err := receiveMessageByName(agentName, ends)
-			if err != nil {
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
-			}
-			if msg.Type != communication.EndpointMessageTypeACK {
-				err := errors.New("unexpected response")
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
-			}
-			// I get the state from the answer...
-			dbgStatus := msg.Payload.(communication.AgentDebugStatus)
-			// ... I prepare the status...
-			type status struct {
-				Paused    bool   `json:"paused"`
-				Verbosity string `json:"verbosity"`
-			}
-			s := status{
-				Paused:    dbgStatus.Paused,
-				Verbosity: dbgStatus.Verbosity,
-			}
-			// ... and I respond with the agent debug status
-			writeResponse(w, http.StatusOK, struct {
-				Name   string `json:"name"`
-				Status status `json:"status"`
-			}{
-				Name:   agentName,
-				Status: s,
-			})
 		// If I need to change the debug status...
 		case http.MethodPost:
 			// ... I parse the request body to extract the status payload...
-			req := struct {
+			type request struct {
 				Paused    bool   `json:"paused"`
 				Verbosity string `json:"verbosity"`
-			}{}
+			}
+			req := request{}
 			err := json.NewDecoder(r.Body).Decode(&req)
 			if err != nil {
 				log.Println(err)
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			// ... I send an debug status change request...
-			err = sendMessageByName(agentName, ends, &communication.EndpointMessage{
-				Type: communication.EndpointMessageTypeDebugChangeREQ,
-				Payload: communication.AgentDebugStatus{
-					Paused:    req.Paused,
-					Verbosity: req.Verbosity,
+			actions <- Action{
+				Type: ActionDebugSet,
+				Payload: struct {
+					agentName string
+					paused    bool
+					verbosity string
+				}{
+					agentName,
+					req.Paused,
+					req.Verbosity,
 				},
-			})
-			if err != nil {
-				log.Println(err)
-				writeError(w, http.StatusNotFound, err.Error())
-				return
 			}
-			// ... and I receive the answer
-			msg, err := receiveMessageByName(agentName, ends)
-			if err != nil || msg.Type != communication.EndpointMessageTypeACK {
-				log.Println(err)
-				writeError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			// Finally, I respond affirmatively
-			writeResponse(w, http.StatusOK, struct {
-				Result string `json:"result"`
-			}{
-				Result: "ok",
-			})
 		}
+		// I get the response and I return it
+		writeActionResponse(w, <-responses)
 	}
 }
 
 // GetHandleDebugStep returns an handler for the debug step method
-func GetHandleDebugStep(ends map[string]*communication.Endpoint) http.HandlerFunc {
+func GetHandleDebugStep(actions chan Action, responses chan ActionResponse) http.HandlerFunc {
 	// I return the handler, decorated with the list of endpoints
 	return func(w http.ResponseWriter, r *http.Request) {
 		// I get the agent name from the query...
 		vars := mux.Vars(r)
 		agentName := vars["agentName"]
-		// ... I send a configuration request...
-		err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-			Type:    communication.EndpointMessageTypeDebugStepREQ,
-			Payload: struct{}{},
-		})
-		if err != nil {
-			log.Println(err)
-			writeError(w, http.StatusNotFound, err.Error())
-			return
+		// ... and I add a new action to process
+		actions <- Action{
+			Type:    ActionDebugStep,
+			Payload: agentName,
 		}
-		// ... and I receive the answer
-		msg, err := receiveMessageByName(agentName, ends)
-		if err != nil {
-			log.Println(err)
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		if msg.Type != communication.EndpointMessageTypeACK {
-			err := errors.New("unexpected response")
-			log.Println(err)
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		// Finally, I respond affirmatively
-		writeResponse(w, http.StatusOK, struct {
-			Result string `json:"result"`
-		}{
-			Result: "ok",
-		})
+		// I get the response and I return it
+		writeActionResponse(w, <-responses)
 	}
 }
 
@@ -390,6 +206,16 @@ func receiveMessageByName(agentName string, ends map[string]*communication.Endpo
 		return nil, err
 	}
 	return msg, nil
+}
+
+// writeActionResponse writes an error or response
+func writeActionResponse(w http.ResponseWriter, res ActionResponse) {
+	// I check whether the Action returned an error or a response and I write it
+	if res.Error {
+		writeError(w, res.StatusCode, res.Payload.(string))
+	} else {
+		writeResponse(w, res.StatusCode, res.Payload)
+	}
 }
 
 // writeError writes a JSON error
