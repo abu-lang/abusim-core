@@ -242,7 +242,7 @@ func doInput(action Action, ends map[string]*communication.Endpoint) ActionRespo
 		return ActionResponse{
 			Error:      true,
 			StatusCode: http.StatusBadRequest,
-			Payload:    err.Error(),
+			Payload:    errInput,
 		}
 	}
 	// and, if there is none, I respond affirmatively
