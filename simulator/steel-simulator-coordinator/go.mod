@@ -10,4 +10,4 @@ require (
 	steel-simulator-common v0.0.0
 )
 
-replace steel => ../../steel
+replace github.com/abu-lang/goabu => ../../goabu

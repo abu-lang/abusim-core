@@ -9,7 +9,7 @@ import (
 	"net"
 	"steel-simulator-common/config"
 
-	"steel/memory"
+	"github.com/abu-lang/goabu/memory"
 )
 
 // Endpoint represents an agent-coordinatior connection side
