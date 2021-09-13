@@ -4,22 +4,22 @@ FROM golang:1.16-alpine as build
 RUN mkdir /coordinator
 WORKDIR /coordinator
 
-COPY ./simulator/steel-simulator-common ./simulator/steel-simulator-common
+COPY ./abusim-core-dev/schema ./abusim-core-dev/schema
 COPY ./goabu ./goabu
 
-WORKDIR /coordinator/simulator/steel-simulator-coordinator
+WORKDIR /coordinator/abusim-core-dev/coordinator
 
-COPY ./simulator/steel-simulator-coordinator/go.mod .
-COPY ./simulator/steel-simulator-coordinator/go.sum .
+COPY ./abusim-core-dev/coordinator/go.mod .
+COPY ./abusim-core-dev/coordinator/go.sum .
 RUN go mod download -x
 
-COPY ./simulator/steel-simulator-coordinator .
+COPY ./abusim-core-dev/coordinator .
 
 RUN CGO_ENABLED=0 go build
 
 # Create the final image with the executable
 FROM scratch as exec
 
-COPY --from=build /coordinator/simulator/steel-simulator-coordinator/steel-simulator-coordinator /coordinator
+COPY --from=build /coordinator/abusim-core-dev/coordinator/abusim-coordinator /coordinator
 
 ENTRYPOINT [ "/coordinator" ]

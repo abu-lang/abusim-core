@@ -3,7 +3,8 @@ package endpoint
 import (
 	"log"
 	"net"
-	"steel-simulator-common/communication"
+
+	"github.com/abu-lang/abusim-core/schema/communication"
 )
 
 // GetListener returns a listener on the control port

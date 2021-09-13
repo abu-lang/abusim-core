@@ -4,10 +4,11 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"steel-simulator-common/communication"
-	"steel-simulator-common/config"
 	"strings"
 	"time"
+
+	"github.com/abu-lang/abusim-core/schema/communication"
+	"github.com/abu-lang/abusim-core/schema/config"
 )
 
 // ActionType represents a type of valid Action

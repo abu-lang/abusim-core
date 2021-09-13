@@ -1,13 +1,14 @@
 package main
 
 import (
+	"abusim-coordinator/api"
+	"abusim-coordinator/endpoint"
 	"log"
 	"os"
 	"os/signal"
-	"steel-simulator-common/communication"
-	"steel-simulator-coordinator/api"
-	"steel-simulator-coordinator/endpoint"
 	"syscall"
+
+	"github.com/abu-lang/abusim-core/schema/communication"
 )
 
 func main() {

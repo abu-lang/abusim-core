@@ -7,7 +7,8 @@ import (
 	"encoding/gob"
 	"io"
 	"net"
-	"steel-simulator-common/config"
+
+	"github.com/abu-lang/abusim-core/schema/config"
 
 	"github.com/abu-lang/goabu/memory"
 )

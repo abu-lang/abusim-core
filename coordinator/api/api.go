@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"steel-simulator-common/communication"
+
+	"github.com/abu-lang/abusim-core/schema/communication"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
