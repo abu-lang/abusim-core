@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abu-lang/abusim-core/schema/communication"
-	"github.com/abu-lang/abusim-core/schema/config"
+	"github.com/abu-lang/abusim-core/schema"
 )
 
 // ActionType represents a type of valid Action
@@ -37,7 +36,7 @@ type ActionResponse struct {
 }
 
 // Process waits for an Action, performs it and publish an ActionResponse
-func Process(actions chan Action, responses chan ActionResponse, ends map[string]*communication.Endpoint) {
+func Process(actions chan Action, responses chan ActionResponse, ends map[string]*schema.Endpoint) {
 	// Forever...
 	for {
 		// ... I get an Action...
@@ -60,12 +59,12 @@ func Process(actions chan Action, responses chan ActionResponse, ends map[string
 	}
 }
 
-func doConfigGet(action Action, ends map[string]*communication.Endpoint) ActionResponse {
+func doConfigGet(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	// I get the agent name...
 	agentName := action.Payload.(string)
 	// ... I send a configuration request...
-	err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-		Type:    communication.EndpointMessageTypeConfigREQ,
+	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
+		Type:    schema.EndpointMessageTypeConfigREQ,
 		Payload: struct{}{},
 	})
 	if err != nil {
@@ -86,7 +85,7 @@ func doConfigGet(action Action, ends map[string]*communication.Endpoint) ActionR
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != communication.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeACK {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
@@ -96,7 +95,7 @@ func doConfigGet(action Action, ends map[string]*communication.Endpoint) ActionR
 		}
 	}
 	// I get the agent configuration from the answer...
-	agent := msg.Payload.(config.Agent)
+	agent := msg.Payload.(schema.Agent)
 	// ... I prepare the memory item strings...
 	memory := []string{}
 	for vartype, value := range agent.Memory {
@@ -126,12 +125,12 @@ func doConfigGet(action Action, ends map[string]*communication.Endpoint) ActionR
 	}
 }
 
-func doMemoryGet(action Action, ends map[string]*communication.Endpoint) ActionResponse {
+func doMemoryGet(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	// I get the agent name...
 	agentName := action.Payload.(string)
 	// ... I send a memory request...
-	err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-		Type:    communication.EndpointMessageTypeMemoryREQ,
+	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
+		Type:    schema.EndpointMessageTypeMemoryREQ,
 		Payload: struct{}{},
 	})
 	if err != nil {
@@ -152,7 +151,7 @@ func doMemoryGet(action Action, ends map[string]*communication.Endpoint) ActionR
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != communication.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeACK {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
@@ -162,7 +161,7 @@ func doMemoryGet(action Action, ends map[string]*communication.Endpoint) ActionR
 		}
 	}
 	// I get the state from the answer...
-	state := msg.Payload.(communication.AgentState)
+	state := msg.Payload.(schema.AgentState)
 	// ... I prepare the memory...
 	type mem struct {
 		Bool    map[string]bool      `json:"bool"`
@@ -207,15 +206,15 @@ func doMemoryGet(action Action, ends map[string]*communication.Endpoint) ActionR
 	}
 }
 
-func doInput(action Action, ends map[string]*communication.Endpoint) ActionResponse {
+func doInput(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	// I get the payload...
 	payload := action.Payload.(struct {
 		agentName string
 		actions   string
 	})
 	// ... I send an input request...
-	err := sendMessageByName(payload.agentName, ends, &communication.EndpointMessage{
-		Type:    communication.EndpointMessageTypeInputREQ,
+	err := sendMessageByName(payload.agentName, ends, &schema.EndpointMessage{
+		Type:    schema.EndpointMessageTypeInputREQ,
 		Payload: payload.actions,
 	})
 	if err != nil {
@@ -228,7 +227,7 @@ func doInput(action Action, ends map[string]*communication.Endpoint) ActionRespo
 	}
 	// ... and I receive the answer
 	msg, err := receiveMessageByName(payload.agentName, ends)
-	if err != nil || msg.Type != communication.EndpointMessageTypeACK {
+	if err != nil || msg.Type != schema.EndpointMessageTypeACK {
 		log.Println(err)
 		return ActionResponse{
 			Error:      true,
@@ -258,12 +257,12 @@ func doInput(action Action, ends map[string]*communication.Endpoint) ActionRespo
 	}
 }
 
-func doDebugGet(action Action, ends map[string]*communication.Endpoint) ActionResponse {
+func doDebugGet(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	// I get the agent name...
 	agentName := action.Payload.(string)
 	// ... I send a debug request...
-	err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-		Type:    communication.EndpointMessageTypeDebugREQ,
+	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
+		Type:    schema.EndpointMessageTypeDebugREQ,
 		Payload: struct{}{},
 	})
 	if err != nil {
@@ -284,7 +283,7 @@ func doDebugGet(action Action, ends map[string]*communication.Endpoint) ActionRe
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != communication.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeACK {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
@@ -294,7 +293,7 @@ func doDebugGet(action Action, ends map[string]*communication.Endpoint) ActionRe
 		}
 	}
 	// I get the state from the answer...
-	dbgStatus := msg.Payload.(communication.AgentDebugStatus)
+	dbgStatus := msg.Payload.(schema.AgentDebugStatus)
 	// ... I prepare the status...
 	type status struct {
 		Paused    bool   `json:"paused"`
@@ -318,7 +317,7 @@ func doDebugGet(action Action, ends map[string]*communication.Endpoint) ActionRe
 	}
 }
 
-func doDebugSet(action Action, ends map[string]*communication.Endpoint) ActionResponse {
+func doDebugSet(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	// I get the payload...
 	payload := action.Payload.(struct {
 		agentName string
@@ -326,9 +325,9 @@ func doDebugSet(action Action, ends map[string]*communication.Endpoint) ActionRe
 		verbosity string
 	})
 	// ... I send an debug status change request...
-	err := sendMessageByName(payload.agentName, ends, &communication.EndpointMessage{
-		Type: communication.EndpointMessageTypeDebugChangeREQ,
-		Payload: communication.AgentDebugStatus{
+	err := sendMessageByName(payload.agentName, ends, &schema.EndpointMessage{
+		Type: schema.EndpointMessageTypeDebugChangeREQ,
+		Payload: schema.AgentDebugStatus{
 			Paused:    payload.paused,
 			Verbosity: payload.verbosity,
 		},
@@ -343,7 +342,7 @@ func doDebugSet(action Action, ends map[string]*communication.Endpoint) ActionRe
 	}
 	// ... and I receive the answer
 	msg, err := receiveMessageByName(payload.agentName, ends)
-	if err != nil || msg.Type != communication.EndpointMessageTypeACK {
+	if err != nil || msg.Type != schema.EndpointMessageTypeACK {
 		log.Println(err)
 		return ActionResponse{
 			Error:      true,
@@ -363,12 +362,12 @@ func doDebugSet(action Action, ends map[string]*communication.Endpoint) ActionRe
 	}
 }
 
-func doDebugStep(action Action, ends map[string]*communication.Endpoint) ActionResponse {
+func doDebugStep(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	// I get the agent name...
 	agentName := action.Payload.(string)
 	// ... I send a configuration request...
-	err := sendMessageByName(agentName, ends, &communication.EndpointMessage{
-		Type:    communication.EndpointMessageTypeDebugStepREQ,
+	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
+		Type:    schema.EndpointMessageTypeDebugStepREQ,
 		Payload: struct{}{},
 	})
 	if err != nil {
@@ -389,7 +388,7 @@ func doDebugStep(action Action, ends map[string]*communication.Endpoint) ActionR
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != communication.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeACK {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{

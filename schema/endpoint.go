@@ -1,4 +1,4 @@
-package communication
+package schema
 
 import (
 	"bufio"
@@ -7,8 +7,6 @@ import (
 	"encoding/gob"
 	"io"
 	"net"
-
-	"github.com/abu-lang/abusim-core/schema/config"
 
 	"github.com/abu-lang/goabu/memory"
 )
@@ -66,7 +64,7 @@ func New(conn net.Conn) *Endpoint {
 	gob.Register(struct{}{})
 	gob.Register(AgentState{})
 	gob.Register(AgentDebugStatus{})
-	gob.Register(config.Agent{})
+	gob.Register(Agent{})
 	// ... and I return the endpoint
 	return &Endpoint{
 		conn:   conn,

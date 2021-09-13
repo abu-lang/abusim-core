@@ -4,7 +4,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/abu-lang/abusim-core/schema/communication"
+	"github.com/abu-lang/abusim-core/schema"
 )
 
 // GetListener returns a listener on the control port
@@ -19,7 +19,7 @@ func GetListener() net.Listener {
 }
 
 // HandleConnections handles the incoming connections from agents
-func HandleConnections(listener net.Listener, ends map[string]*communication.Endpoint) {
+func HandleConnections(listener net.Listener, ends map[string]*schema.Endpoint) {
 	// I loop...
 	for {
 		// ... I accept an incoming connection...
@@ -34,10 +34,10 @@ func HandleConnections(listener net.Listener, ends map[string]*communication.End
 }
 
 // handleConnection handles a single incoming connection
-func handleConnection(conn net.Conn, ends map[string]*communication.Endpoint) {
+func handleConnection(conn net.Conn, ends map[string]*schema.Endpoint) {
 	log.Printf("New agent connected from %s\n", conn.RemoteAddr().String())
 	// I create a new endpoint...
-	end := communication.New(conn)
+	end := schema.New(conn)
 	// ... I receive the initialization message...
 	initMsg, err := end.Read()
 	if err != nil {
@@ -45,8 +45,8 @@ func handleConnection(conn net.Conn, ends map[string]*communication.Endpoint) {
 		return
 	}
 	// ... and I acknowledge it
-	err = end.Write(&communication.EndpointMessage{
-		Type:    communication.EndpointMessageTypeACK,
+	err = end.Write(&schema.EndpointMessage{
+		Type:    schema.EndpointMessageTypeACK,
 		Payload: struct{}{},
 	})
 	if err != nil {

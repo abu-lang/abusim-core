@@ -8,12 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/abu-lang/abusim-core/schema/communication"
+	"github.com/abu-lang/abusim-core/schema"
 )
 
 func main() {
 	// I create a map for the endpoints...
-	ends := make(map[string]*communication.Endpoint)
+	ends := make(map[string]*schema.Endpoint)
 	// ... I set up the handler to close the connections...
 	setupCloseHandler(ends)
 	// ... I listen for connection...
@@ -28,7 +28,7 @@ func main() {
 }
 
 // setupCloseHandler waits for a SIGTERM and then closes all the connections
-func setupCloseHandler(ends map[string]*communication.Endpoint) {
+func setupCloseHandler(ends map[string]*schema.Endpoint) {
 	// I register for the SIGTERMs...
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)

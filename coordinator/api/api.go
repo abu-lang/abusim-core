@@ -6,14 +6,14 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/abu-lang/abusim-core/schema/communication"
+	"github.com/abu-lang/abusim-core/schema"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 )
 
 // Serve serves the API on the API port
-func Serve(ends map[string]*communication.Endpoint) {
+func Serve(ends map[string]*schema.Endpoint) {
 	// I create the channels to serialize the actions...
 	actions := make(chan Action)
 	responses := make(chan ActionResponse)
@@ -46,7 +46,7 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	b, _ := json.Marshal(struct {
 		Welcome string `json:"welcome"`
 	}{
-		Welcome: "Welcome to steel-coordinator API!",
+		Welcome: "Welcome to abusim-coordinator API!",
 	})
 	w.Write(b)
 }
@@ -180,7 +180,7 @@ func GetHandleDebugStep(actions chan Action, responses chan ActionResponse) http
 }
 
 // sendMessageByName sends a message to an agent, given its name
-func sendMessageByName(agentName string, ends map[string]*communication.Endpoint, message *communication.EndpointMessage) error {
+func sendMessageByName(agentName string, ends map[string]*schema.Endpoint, message *schema.EndpointMessage) error {
 	// I check if the agent exists...
 	end, ok := ends[agentName]
 	if !ok {
@@ -195,7 +195,7 @@ func sendMessageByName(agentName string, ends map[string]*communication.Endpoint
 }
 
 // receiveMessageByName receives a message from an agent, given its name
-func receiveMessageByName(agentName string, ends map[string]*communication.Endpoint) (*communication.EndpointMessage, error) {
+func receiveMessageByName(agentName string, ends map[string]*schema.Endpoint) (*schema.EndpointMessage, error) {
 	// I check if the agent exists...
 	end, ok := ends[agentName]
 	if !ok {
