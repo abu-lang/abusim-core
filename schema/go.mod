@@ -1,4 +1,4 @@
-module steel-simulator-common
+module schema
 
 go 1.16
 
