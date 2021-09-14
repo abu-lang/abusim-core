@@ -47,12 +47,12 @@ func handleConnection(conn net.Conn, ends map[string]*schema.Endpoint) {
 	// ... and I acknowledge it
 	err = end.Write(&schema.EndpointMessage{
 		Type:    schema.EndpointMessageTypeACK,
-		Payload: struct{}{},
+		Payload: nil,
 	})
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	// Finally, I add the endpoint to the endpoints pool
-	ends[initMsg.Payload.(string)] = end
+	ends[initMsg.Payload.(*schema.EndpointMessagePayloadINIT).Name] = end
 }

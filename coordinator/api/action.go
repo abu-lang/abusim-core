@@ -65,7 +65,7 @@ func doConfigGet(action Action, ends map[string]*schema.Endpoint) ActionResponse
 	// ... I send a configuration request...
 	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
 		Type:    schema.EndpointMessageTypeConfigREQ,
-		Payload: struct{}{},
+		Payload: nil,
 	})
 	if err != nil {
 		log.Println(err)
@@ -85,7 +85,7 @@ func doConfigGet(action Action, ends map[string]*schema.Endpoint) ActionResponse
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != schema.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeConfigRES {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
@@ -95,7 +95,7 @@ func doConfigGet(action Action, ends map[string]*schema.Endpoint) ActionResponse
 		}
 	}
 	// I get the agent configuration from the answer...
-	agent := msg.Payload.(schema.Agent)
+	agent := msg.Payload.(*schema.EndpointMessagePayloadConfigRES).Agent
 	// ... I prepare the memory item strings...
 	memory := []string{}
 	for vartype, value := range agent.Memory {
@@ -131,7 +131,7 @@ func doMemoryGet(action Action, ends map[string]*schema.Endpoint) ActionResponse
 	// ... I send a memory request...
 	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
 		Type:    schema.EndpointMessageTypeMemoryREQ,
-		Payload: struct{}{},
+		Payload: nil,
 	})
 	if err != nil {
 		log.Println(err)
@@ -151,7 +151,7 @@ func doMemoryGet(action Action, ends map[string]*schema.Endpoint) ActionResponse
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != schema.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeMemoryRES {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
@@ -161,7 +161,7 @@ func doMemoryGet(action Action, ends map[string]*schema.Endpoint) ActionResponse
 		}
 	}
 	// I get the state from the answer...
-	state := msg.Payload.(schema.AgentState)
+	state := msg.Payload.(*schema.EndpointMessagePayloadMemoryRES)
 	// ... I prepare the memory...
 	type mem struct {
 		Bool    map[string]bool      `json:"bool"`
@@ -213,9 +213,12 @@ func doInput(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 		actions   string
 	})
 	// ... I send an input request...
+	msgpayload := schema.EndpointMessagePayloadInputREQ{
+		Input: payload.actions,
+	}
 	err := sendMessageByName(payload.agentName, ends, &schema.EndpointMessage{
 		Type:    schema.EndpointMessageTypeInputREQ,
-		Payload: payload.actions,
+		Payload: &msgpayload,
 	})
 	if err != nil {
 		log.Println(err)
@@ -227,7 +230,7 @@ func doInput(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 	}
 	// ... and I receive the answer
 	msg, err := receiveMessageByName(payload.agentName, ends)
-	if err != nil || msg.Type != schema.EndpointMessageTypeACK {
+	if err != nil || msg.Type != schema.EndpointMessageTypeInputRES {
 		log.Println(err)
 		return ActionResponse{
 			Error:      true,
@@ -236,7 +239,7 @@ func doInput(action Action, ends map[string]*schema.Endpoint) ActionResponse {
 		}
 	}
 	// I get the eventual error from the answer...
-	errInput := msg.Payload.(string)
+	errInput := msg.Payload.(*schema.EndpointMessagePayloadInputRES).Error
 	if errInput != "" {
 		log.Println(errInput)
 		return ActionResponse{
@@ -263,7 +266,7 @@ func doDebugGet(action Action, ends map[string]*schema.Endpoint) ActionResponse 
 	// ... I send a debug request...
 	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
 		Type:    schema.EndpointMessageTypeDebugREQ,
-		Payload: struct{}{},
+		Payload: nil,
 	})
 	if err != nil {
 		log.Println(err)
@@ -283,7 +286,7 @@ func doDebugGet(action Action, ends map[string]*schema.Endpoint) ActionResponse 
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != schema.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeDebugRES {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
@@ -293,7 +296,7 @@ func doDebugGet(action Action, ends map[string]*schema.Endpoint) ActionResponse 
 		}
 	}
 	// I get the state from the answer...
-	dbgStatus := msg.Payload.(schema.AgentDebugStatus)
+	dbgStatus := msg.Payload.(*schema.EndpointMessagePayloadDebugRES)
 	// ... I prepare the status...
 	type status struct {
 		Paused    bool   `json:"paused"`
@@ -324,13 +327,14 @@ func doDebugSet(action Action, ends map[string]*schema.Endpoint) ActionResponse 
 		paused    bool
 		verbosity string
 	})
-	// ... I send an debug status change request...
+	// ... I send a debug status change request...
+	msgpayload := schema.EndpointMessagePayloadDebugChangeREQ{
+		Paused:    payload.paused,
+		Verbosity: payload.verbosity,
+	}
 	err := sendMessageByName(payload.agentName, ends, &schema.EndpointMessage{
-		Type: schema.EndpointMessageTypeDebugChangeREQ,
-		Payload: schema.AgentDebugStatus{
-			Paused:    payload.paused,
-			Verbosity: payload.verbosity,
-		},
+		Type:    schema.EndpointMessageTypeDebugChangeREQ,
+		Payload: &msgpayload,
 	})
 	if err != nil {
 		log.Println(err)
@@ -342,7 +346,7 @@ func doDebugSet(action Action, ends map[string]*schema.Endpoint) ActionResponse 
 	}
 	// ... and I receive the answer
 	msg, err := receiveMessageByName(payload.agentName, ends)
-	if err != nil || msg.Type != schema.EndpointMessageTypeACK {
+	if err != nil || msg.Type != schema.EndpointMessageTypeDebugChangeRES {
 		log.Println(err)
 		return ActionResponse{
 			Error:      true,
@@ -368,7 +372,7 @@ func doDebugStep(action Action, ends map[string]*schema.Endpoint) ActionResponse
 	// ... I send a configuration request...
 	err := sendMessageByName(agentName, ends, &schema.EndpointMessage{
 		Type:    schema.EndpointMessageTypeDebugStepREQ,
-		Payload: struct{}{},
+		Payload: nil,
 	})
 	if err != nil {
 		log.Println(err)
@@ -388,7 +392,7 @@ func doDebugStep(action Action, ends map[string]*schema.Endpoint) ActionResponse
 			Payload:    err.Error(),
 		}
 	}
-	if msg.Type != schema.EndpointMessageTypeACK {
+	if msg.Type != schema.EndpointMessageTypeDebugStepRES {
 		err := errors.New("unexpected response")
 		log.Println(err)
 		return ActionResponse{
