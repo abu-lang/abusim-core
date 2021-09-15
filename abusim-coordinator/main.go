@@ -1,12 +1,13 @@
 package main
 
 import (
-	"abusim-coordinator/api"
-	"abusim-coordinator/endpoint"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/abu-lang/abusim-core/abusim-coordinator/api"
+	"github.com/abu-lang/abusim-core/abusim-coordinator/endpoint"
 
 	"github.com/abu-lang/abusim-core/schema"
 )
