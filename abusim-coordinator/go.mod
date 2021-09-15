@@ -1,4 +1,4 @@
-module abusim-coordinator
+module github.com/abu-lang/abusim-core/abusim-coordinator
 
 go 1.16
 
