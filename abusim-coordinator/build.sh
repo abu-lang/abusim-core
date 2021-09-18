@@ -1,3 +1,3 @@
-pushd ../../
-docker build -f ./abusim-core-dev/coordinator/Dockerfile . -t abusim-coordinator
+pushd ../
+docker build -f ./abusim-coordinator/Dockerfile . -t abulang/abusim-coordinator
 popd
